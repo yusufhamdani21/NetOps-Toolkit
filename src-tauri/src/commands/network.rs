@@ -222,7 +222,9 @@ pub async fn traceroute_host(host: String) -> TracerouteResult {
 
     let timestamp = chrono::Utc::now().to_rfc3339();
     let output = if cfg!(target_os = "windows") {
-        Command::new("tracert").arg("-d").arg(&host).output()
+        Command::new("tracert")
+            .args(["-d", "-w", "500", "-h", "30", &host])
+            .output()
     } else {
         Command::new("traceroute").args(["-n", &host]).output()
     };
@@ -238,13 +240,19 @@ pub async fn traceroute_host(host: String) -> TracerouteResult {
                         return None;
                     }
                     let hop = parts[0].parse::<u32>().ok()?;
-                    let ip = parts.last()?.to_string();
+
+                    let ip = if line.contains("Request timed out") || parts.iter().any(|p| *p == "*") {
+                        "*".to_string()
+                    } else {
+                        parts.iter().rev().find(|p| p.contains('.') || p.contains(':')).unwrap_or(&"?").to_string()
+                    };
+
                     Some(TracerouteHop {
                         hop,
                         hostname: format!("hop-{}", hop),
                         ip,
                         latencies: vec![],
-                        packet_loss: 0.0,
+                        packet_loss: if ip == "*" { 100.0 } else { 0.0 },
                     })
                 })
                 .collect();
