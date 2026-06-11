@@ -353,13 +353,13 @@ pub struct DnsAnswer {
 
 #[command]
 pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
-    use trust_dns_resolver::config::*;
-    use trust_dns_resolver::Resolver;
+    use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+    use trust_dns_resolver::TokioAsyncResolver;
 
     let timestamp = chrono::Utc::now().to_rfc3339();
     let start = Instant::now();
 
-    let resolver = match Resolver::new(ResolverConfig::default(), ResolverOpts::default()) {
+    let resolver = match TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default()).await {
         Ok(r) => r,
         Err(_e) => {
             return DnsResult {
@@ -375,7 +375,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
 
     let answers = match record_type.to_uppercase().as_str() {
         "A" => {
-            match resolver.ipv4_lookup(&domain) {
+            match resolver.ipv4_lookup(&domain).await {
                 Ok(response) => response
                     .iter()
                     .map(|ip| DnsAnswer {
@@ -389,7 +389,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
             }
         }
         "AAAA" => {
-            match resolver.ipv6_lookup(&domain) {
+            match resolver.ipv6_lookup(&domain).await {
                 Ok(response) => response
                     .iter()
                     .map(|ip| DnsAnswer {
@@ -403,7 +403,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
             }
         }
         "MX" => {
-            match resolver.mx_lookup(&domain) {
+            match resolver.mx_lookup(&domain).await {
                 Ok(response) => response
                     .iter()
                     .map(|mx| DnsAnswer {
@@ -417,7 +417,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
             }
         }
         "NS" => {
-            match resolver.ns_lookup(&domain) {
+            match resolver.ns_lookup(&domain).await {
                 Ok(response) => response
                     .iter()
                     .map(|ns| DnsAnswer {
@@ -431,7 +431,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
             }
         }
         "TXT" => {
-            match resolver.txt_lookup(&domain) {
+            match resolver.txt_lookup(&domain).await {
                 Ok(response) => response
                     .iter()
                     .flat_map(|txt| {
@@ -449,7 +449,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
             }
         }
         _ => {
-            match resolver.lookup(&domain, trust_dns_resolver::proto::rr::RecordType::A) {
+            match resolver.lookup(&domain, trust_dns_resolver::proto::rr::RecordType::A).await {
                 Ok(response) => response
                     .iter()
                     .map(|r| DnsAnswer {
@@ -485,38 +485,40 @@ pub struct ReverseDnsResult {
 
 #[command]
 pub async fn reverse_dns(ip: String) -> ReverseDnsResult {
-    use trust_dns_resolver::config::*;
-    use trust_dns_resolver::Resolver;
+    use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+    use trust_dns_resolver::TokioAsyncResolver;
 
     let timestamp = chrono::Utc::now().to_rfc3339();
-    let resolver = Resolver::new(ResolverConfig::default(), ResolverOpts::default());
 
-    match resolver {
-        Ok(resolver) => {
-            let addr: std::net::IpAddr = match ip.parse() {
-                Ok(a) => a,
-                Err(_) => {
-                    return ReverseDnsResult {
-                        ip,
-                        hostname: None,
-                        timestamp,
-                    };
-                }
+    let resolver = match TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default()).await {
+        Ok(r) => r,
+        Err(_) => {
+            return ReverseDnsResult {
+                ip,
+                hostname: None,
+                timestamp,
             };
-            match resolver.reverse_lookup(addr) {
-                Ok(response) => {
-                    let hostname = response.iter().next().map(|n| n.to_string());
-                    ReverseDnsResult {
-                        ip,
-                        hostname,
-                        timestamp,
-                    }
-                }
-                Err(_) => ReverseDnsResult {
-                    ip,
-                    hostname: None,
-                    timestamp,
-                },
+        }
+    };
+
+    let addr: std::net::IpAddr = match ip.parse() {
+        Ok(a) => a,
+        Err(_) => {
+            return ReverseDnsResult {
+                ip,
+                hostname: None,
+                timestamp,
+            };
+        }
+    };
+
+    match resolver.reverse_lookup(addr).await {
+        Ok(response) => {
+            let hostname = response.iter().next().map(|n| n.to_string());
+            ReverseDnsResult {
+                ip,
+                hostname,
+                timestamp,
             }
         }
         Err(_) => ReverseDnsResult {
