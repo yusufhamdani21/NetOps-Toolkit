@@ -359,19 +359,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
     let timestamp = chrono::Utc::now().to_rfc3339();
     let start = Instant::now();
 
-    let resolver = match TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default()).await {
-        Ok(r) => r,
-        Err(_e) => {
-            return DnsResult {
-                domain: domain.clone(),
-                record_type: record_type.clone(),
-                answers: vec![],
-                server: "error".to_string(),
-                response_time: 0,
-                timestamp,
-            };
-        }
-    };
+    let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
 
     let answers = match record_type.to_uppercase().as_str() {
         "A" => {
@@ -490,16 +478,7 @@ pub async fn reverse_dns(ip: String) -> ReverseDnsResult {
 
     let timestamp = chrono::Utc::now().to_rfc3339();
 
-    let resolver = match TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default()).await {
-        Ok(r) => r,
-        Err(_) => {
-            return ReverseDnsResult {
-                ip,
-                hostname: None,
-                timestamp,
-            };
-        }
-    };
+    let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
 
     let addr: std::net::IpAddr = match ip.parse() {
         Ok(a) => a,
