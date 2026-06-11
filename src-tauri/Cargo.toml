@@ -24,7 +24,6 @@ reqwest = { version = "0.12", features = ["json", "native-tls"] }
 native-tls = "0.2"
 tokio = { version = "1", features = ["full"] }
 trust-dns-resolver = "0.23"
-whois = { version = "1", package = "whois-rs" }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 mime_guess = "2"

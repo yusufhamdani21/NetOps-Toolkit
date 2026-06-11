@@ -2,7 +2,6 @@ use serde::Serialize;
 use std::net::ToSocketAddrs;
 use std::time::{Duration, Instant};
 use tauri::command;
-use whois::{WhoIs, WhoIsLookupOptions};
 use x509_parser::prelude::{FromDer, X509Certificate};
 
 #[derive(Debug, Serialize)]
@@ -299,25 +298,76 @@ pub struct MtrResult {
 
 #[command]
 pub async fn mtr_host(host: String) -> MtrResult {
+    let timestamp = chrono::Utc::now().to_rfc3339();
     use std::process::Command;
 
-    let timestamp = chrono::Utc::now().to_rfc3339();
-    let output = if cfg!(target_os = "windows") {
-        Command::new("pathping").args(["-n", "-h", "10", &host]).output()
-    } else {
-        Command::new("mtr").args(["-r", "-n", "-c", "5", "--report-wide", &host]).output()
-    };
+    if cfg!(target_os = "windows") {
+        let output = Command::new("tracert")
+            .args(["-d", "-w", "500", "-h", "30", &host])
+            .output();
+        let hops = match output {
+            Ok(out) => {
+                let raw = String::from_utf8_lossy(&out.stdout).to_string();
+                raw.lines()
+                    .filter_map(|line| {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() < 3 { return None; }
+                        let hop = parts[0].parse::<u32>().ok()?;
+                        if line.contains("Request timed out") || parts.iter().any(|p| *p == "*") {
+                            Some(MtrHop {
+                                hop,
+                                hostname: format!("hop-{}", hop),
+                                ip: "*".to_string(),
+                                loss_percent: 100.0,
+                                sent: 3,
+                                last: 0.0,
+                                avg: 0.0,
+                                best: 0.0,
+                                worst: 0.0,
+                                std_dev: 0.0,
+                            })
+                        } else {
+                            let ip = parts.iter().rev().find(|p| p.contains('.') || p.contains(':')).unwrap_or(&"?").to_string();
+                            let latencies: Vec<f64> = parts.iter().filter_map(|p| p.trim_end_matches("ms").parse().ok()).collect();
+                            let last = latencies.last().copied().unwrap_or(0.0);
+                            let avg = if !latencies.is_empty() { latencies.iter().sum::<f64>() / latencies.len() as f64 } else { 0.0 };
+                            let best = latencies.iter().cloned().fold(f64::MAX, f64::min);
+                            let worst = latencies.iter().cloned().fold(f64::MIN, f64::max);
+                            Some(MtrHop {
+                                hop,
+                                hostname: format!("hop-{}", hop),
+                                ip,
+                                loss_percent: 0.0,
+                                sent: 3,
+                                last,
+                                avg,
+                                best: if best == f64::MAX { 0.0 } else { best },
+                                worst: if worst == f64::MIN { 0.0 } else { worst },
+                                std_dev: 0.0,
+                            })
+                        }
+                    })
+                    .collect()
+            }
+            Err(_) => vec![],
+        };
+        return MtrResult {
+            target: host,
+            hops,
+            timestamp,
+        };
+    }
 
-    match output {
+    let output = Command::new("mtr")
+        .args(["-r", "-n", "-c", "5", "--report-wide", &host])
+        .output();
+    let hops = match output {
         Ok(out) => {
             let raw = String::from_utf8_lossy(&out.stdout).to_string();
-            let hops: Vec<MtrHop> = raw
-                .lines()
+            raw.lines()
                 .filter_map(|line| {
                     let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() < 8 {
-                        return None;
-                    }
+                    if parts.len() < 8 { return None; }
                     let hop = parts[0].parse::<u32>().ok()?;
                     Some(MtrHop {
                         hop,
@@ -332,19 +382,14 @@ pub async fn mtr_host(host: String) -> MtrResult {
                         std_dev: parts.get(8).and_then(|s| s.parse().ok()).unwrap_or(0.0),
                     })
                 })
-                .collect();
-
-            MtrResult {
-                target: host,
-                hops,
-                timestamp,
-            }
+                .collect()
         }
-        Err(_) => MtrResult {
-            target: host,
-            hops: vec![],
-            timestamp,
-        },
+        Err(_) => vec![],
+    };
+    MtrResult {
+        target: host,
+        hops,
+        timestamp,
     }
 }
 
@@ -536,41 +581,47 @@ pub struct WhoisResult {
 
 #[command]
 pub async fn whois_lookup(query: String) -> WhoisResult {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpStream;
+    use tokio::time::timeout;
+
     let timestamp = chrono::Utc::now().to_rfc3339();
+    let timeout_dur = Duration::from_secs(10);
 
-    let whois = match WhoIs::from_host("whois.verisign-grs.com") {
-        Ok(w) => w,
-        Err(e) => {
+    let server = "whois.verisign-grs.com";
+
+    let mut stream = match timeout(timeout_dur, TcpStream::connect((server, 43))).await {
+        Ok(Ok(s)) => s,
+        _ => {
             return WhoisResult {
                 query,
-                data: format!("WHOIS client init failed: {}", e),
+                data: format!("WHOIS lookup failed: could not connect to {}:43", server),
                 timestamp,
             };
         }
     };
 
-    let options = match WhoIsLookupOptions::from_string(&query) {
-        Ok(o) => o,
-        Err(e) => {
-            return WhoisResult {
-                query,
-                data: format!("Invalid WHOIS query: {}", e),
-                timestamp,
-            };
-        }
-    };
+    if let Err(e) = timeout(timeout_dur, stream.write_all(format!("{}\r\n", query).as_bytes())).await {
+        return WhoisResult {
+            query,
+            data: format!("WHOIS lookup failed: write error: {}", e),
+            timestamp,
+        };
+    }
 
-    match whois.lookup(options) {
-        Ok(response) => WhoisResult {
+    let mut response = String::new();
+    if let Err(e) = timeout(timeout_dur, stream.read_to_string(&mut response)).await {
+        return WhoisResult {
             query,
-            data: response,
+            data: format!("WHOIS lookup failed: read error: {}", e),
             timestamp,
-        },
-        Err(e) => WhoisResult {
-            query,
-            data: format!("WHOIS lookup failed: {}", e),
-            timestamp,
-        },
+        };
+    }
+
+    WhoisResult {
+        query,
+        data: response,
+        timestamp,
     }
 }
 
