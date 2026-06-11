@@ -67,10 +67,7 @@
         }
       ]
     },
-    "dialog": {
-      "open": true,
-      "save": true
-    },
+    "dialog": {},
     "fs": {
       "scope": ["**"]
     }
