@@ -23,17 +23,33 @@ pub async fn get_dashboard_info() -> DashboardInfo {
         .map(|ip| ip.to_string())
         .unwrap_or_else(|_| "Unknown".to_string());
 
-    let public_ip = get_public_ip().await.unwrap_or_else(|_| "Unknown".to_string());
+    let start = Instant::now();
+    let public_ip = match get_public_ip().await {
+        Ok(ip) => {
+            let latency = start.elapsed().as_millis() as u64;
+            return DashboardInfo {
+                local_ip,
+                public_ip: ip,
+                dns_server: "8.8.8.8".to_string(),
+                network_status: "online".to_string(),
+                current_latency: latency,
+                packet_loss: 0.0,
+                last_diagnostic_run: None,
+                quick_health: if latency < 100 { "healthy" } else if latency < 300 { "warning" } else { "critical" }.to_string(),
+            };
+        }
+        Err(_) => "Unknown".to_string(),
+    };
 
     DashboardInfo {
         local_ip,
         public_ip,
         dns_server: "8.8.8.8".to_string(),
-        network_status: "online".to_string(),
+        network_status: "offline".to_string(),
         current_latency: 0,
         packet_loss: 0.0,
         last_diagnostic_run: None,
-        quick_health: "healthy".to_string(),
+        quick_health: "critical".to_string(),
     }
 }
 
