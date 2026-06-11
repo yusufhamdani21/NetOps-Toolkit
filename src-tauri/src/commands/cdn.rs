@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::command;
 
 #[derive(Debug, Serialize)]
@@ -99,7 +99,7 @@ pub async fn inspect_cdn(url: String) -> CdnInspectionResult {
                 timestamp,
             }
         }
-        Err(e) => CdnInspectionResult {
+        Err(_e) => CdnInspectionResult {
             url,
             resolved_ip,
             server: String::new(),

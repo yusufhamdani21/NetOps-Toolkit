@@ -9,7 +9,7 @@ pub struct ExportPdfResult {
 }
 
 #[command]
-pub async fn export_pdf(html: String, filename: String) -> ExportPdfResult {
+pub async fn export_pdf(_html: String, _filename: String) -> ExportPdfResult {
     ExportPdfResult {
         success: false,
         path: None,

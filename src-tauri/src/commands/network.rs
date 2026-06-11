@@ -1,7 +1,9 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::net::ToSocketAddrs;
 use std::time::{Duration, Instant};
 use tauri::command;
+use whois::{WhoIs, WhoIsLookupOptions};
+use x509_parser::prelude::X509Certificate;
 
 #[derive(Debug, Serialize)]
 pub struct DashboardInfo {
@@ -343,7 +345,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
 
     let resolver = match Resolver::new(ResolverConfig::default(), ResolverOpts::default()) {
         Ok(r) => r,
-        Err(e) => {
+        Err(_e) => {
             return DnsResult {
                 domain: domain.clone(),
                 record_type: record_type.clone(),
@@ -520,7 +522,29 @@ pub struct WhoisResult {
 pub async fn whois_lookup(query: String) -> WhoisResult {
     let timestamp = chrono::Utc::now().to_rfc3339();
 
-    match whois::whois(&query) {
+    let whois = match WhoIs::from_host("whois.verisign-grs.com") {
+        Ok(w) => w,
+        Err(e) => {
+            return WhoisResult {
+                query,
+                data: format!("WHOIS client init failed: {}", e),
+                timestamp,
+            };
+        }
+    };
+
+    let options = match WhoIsLookupOptions::from_string(&query) {
+        Ok(o) => o,
+        Err(e) => {
+            return WhoisResult {
+                query,
+                data: format!("Invalid WHOIS query: {}", e),
+                timestamp,
+            };
+        }
+    };
+
+    match whois.lookup(options) {
         Ok(response) => WhoisResult {
             query,
             data: response,
@@ -616,22 +640,54 @@ pub async fn cert_check(hostname: String) -> CertCheckResult {
                     match connector.connect(&hostname, stream) {
                         Ok(tls_stream) => {
                             if let Some(cert) = tls_stream.peer_certificate().ok().flatten() {
-                                let subject = format!("{:?}", cert.subject_name());
-                                let issuer = format!("{:?}", cert.issuer());
-                                let valid_from = chrono::Utc::now().to_rfc3339();
-                                let valid_to = (chrono::Utc::now() + chrono::Duration::days(90)).to_rfc3339();
-                                let days_remaining = 90;
+                                match cert.to_der() {
+                                    Ok(der) => {
+                                        match X509Certificate::from_der(&der) {
+                                            Ok((_, parsed)) => {
+                                                let subject = parsed.subject().to_string();
+                                                let issuer = parsed.issuer().to_string();
+                                                let valid_from: chrono::DateTime<chrono::Utc> = parsed.validity().not_before.into();
+                                                let valid_to: chrono::DateTime<chrono::Utc> = parsed.validity().not_after.into();
+                                                let days_remaining = (valid_to - chrono::Utc::now()).num_days().max(0);
+                                                let valid_from = valid_from.to_rfc3339();
+                                                let valid_to = valid_to.to_rfc3339();
 
-                                CertCheckResult {
-                                    hostname,
-                                    valid: true,
-                                    issuer,
-                                    subject,
-                                    valid_from,
-                                    valid_to,
-                                    days_remaining,
-                                    error: None,
-                                    timestamp,
+                                                CertCheckResult {
+                                                    hostname,
+                                                    valid: true,
+                                                    issuer,
+                                                    subject,
+                                                    valid_from,
+                                                    valid_to,
+                                                    days_remaining,
+                                                    error: None,
+                                                    timestamp,
+                                                }
+                                            }
+                                            Err(e) => CertCheckResult {
+                                                hostname,
+                                                valid: false,
+                                                issuer: String::new(),
+                                                subject: String::new(),
+                                                valid_from: String::new(),
+                                                valid_to: String::new(),
+                                                days_remaining: 0,
+                                                error: Some(format!("Failed to parse certificate: {}", e)),
+                                                timestamp,
+                                            },
+                                        }
+                                    }
+                                    Err(e) => CertCheckResult {
+                                        hostname,
+                                        valid: false,
+                                        issuer: String::new(),
+                                        subject: String::new(),
+                                        valid_from: String::new(),
+                                        valid_to: String::new(),
+                                        days_remaining: 0,
+                                        error: Some(format!("Failed to decode certificate: {}", e)),
+                                        timestamp,
+                                    },
                                 }
                             } else {
                                 CertCheckResult {
