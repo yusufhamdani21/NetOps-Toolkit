@@ -6,6 +6,7 @@ use whois::{WhoIs, WhoIsLookupOptions};
 use x509_parser::prelude::{FromDer, X509Certificate};
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DashboardInfo {
     pub local_ip: String,
     pub public_ip: String,
@@ -72,6 +73,7 @@ async fn get_public_ip() -> Result<String, String> {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PingResult {
     pub host: String,
     pub resolved_ip: String,
@@ -195,6 +197,7 @@ pub async fn ping_host(host: String) -> PingResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TracerouteHop {
     pub hop: u32,
     pub hostname: String,
@@ -204,6 +207,7 @@ pub struct TracerouteHop {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TracerouteResult {
     pub target: String,
     pub hops: Vec<TracerouteHop>,
@@ -262,6 +266,7 @@ pub async fn traceroute_host(host: String) -> TracerouteResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MtrHop {
     pub hop: u32,
     pub hostname: String,
@@ -276,6 +281,7 @@ pub struct MtrHop {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MtrResult {
     pub target: String,
     pub hops: Vec<MtrHop>,
@@ -334,6 +340,7 @@ pub async fn mtr_host(host: String) -> MtrResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DnsResult {
     pub domain: String,
     pub record_type: String,
@@ -344,6 +351,7 @@ pub struct DnsResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DnsAnswer {
     pub name: String,
     pub r#type: String,
@@ -465,6 +473,7 @@ pub async fn dns_lookup(domain: String, record_type: String) -> DnsResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReverseDnsResult {
     pub ip: String,
     pub hostname: Option<String>,
@@ -509,6 +518,7 @@ pub async fn reverse_dns(ip: String) -> ReverseDnsResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WhoisResult {
     pub query: String,
     pub data: String,
@@ -556,6 +566,7 @@ pub async fn whois_lookup(query: String) -> WhoisResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HttpStatusResult {
     pub url: String,
     pub status_code: u16,
@@ -611,6 +622,7 @@ pub async fn http_status(url: String) -> HttpStatusResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CertCheckResult {
     pub hostname: String,
     pub valid: bool,

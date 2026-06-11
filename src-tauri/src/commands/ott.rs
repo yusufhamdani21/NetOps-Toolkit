@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use tauri::command;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HlsValidationResult {
     pub url: String,
     pub http_status: u16,
@@ -111,6 +112,7 @@ pub async fn validate_hls(url: String) -> HlsValidationResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DashValidationResult {
     pub url: String,
     pub http_status: u16,
@@ -191,6 +193,7 @@ pub async fn validate_dash(url: String) -> DashValidationResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SegmentCheckResult {
     pub url: String,
     pub status_code: u16,
@@ -236,6 +239,7 @@ pub async fn check_segment(url: String) -> SegmentCheckResult {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StreamResponseTime {
     pub url: String,
     pub dns_time: u64,
@@ -271,6 +275,7 @@ pub async fn measure_stream_response(url: String) -> StreamResponseTime {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StreamLatency {
     pub url: String,
     pub estimated_latency: u64,
@@ -314,6 +319,7 @@ pub async fn estimate_stream_latency(url: String) -> StreamLatency {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaylistSegment {
     pub duration: f64,
     pub uri: String,
@@ -321,6 +327,7 @@ pub struct PlaylistSegment {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ParsedPlaylist {
     pub version: u32,
     pub r#type: String,
@@ -331,6 +338,7 @@ pub struct ParsedPlaylist {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaylistData {
     pub url: String,
     pub raw: String,

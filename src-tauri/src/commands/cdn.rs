@@ -4,6 +4,7 @@ use std::time::Duration;
 use tauri::command;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CdnInspectionResult {
     pub url: String,
     pub resolved_ip: String,

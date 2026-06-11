@@ -2,6 +2,7 @@ use serde::Serialize;
 use tauri::command;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExportPdfResult {
     pub success: bool,
     pub path: Option<String>,
