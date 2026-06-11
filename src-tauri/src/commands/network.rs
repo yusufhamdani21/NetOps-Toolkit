@@ -646,11 +646,17 @@ pub async fn cert_check(hostname: String) -> CertCheckResult {
                                             Ok((_, parsed)) => {
                                                 let subject = parsed.subject().to_string();
                                                 let issuer = parsed.issuer().to_string();
-                                                let valid_from: chrono::DateTime<chrono::Utc> = parsed.validity().not_before.into();
-                                                let valid_to: chrono::DateTime<chrono::Utc> = parsed.validity().not_after.into();
-                                                let days_remaining = (valid_to - chrono::Utc::now()).num_days().max(0);
-                                                let valid_from = valid_from.to_rfc3339();
-                                                let valid_to = valid_to.to_rfc3339();
+                                                let valid_from_ts = parsed.validity().not_before.timestamp();
+                                                let valid_to_ts = parsed.validity().not_after.timestamp();
+                                                let valid_from = chrono::DateTime::from_timestamp(valid_from_ts, 0)
+                                                    .map(|dt| dt.to_rfc3339())
+                                                    .unwrap_or_default();
+                                                let valid_to = chrono::DateTime::from_timestamp(valid_to_ts, 0)
+                                                    .map(|dt| dt.to_rfc3339())
+                                                    .unwrap_or_default();
+                                                let days_remaining = chrono::DateTime::from_timestamp(valid_to_ts, 0)
+                                                    .map(|dt| (dt - chrono::Utc::now()).num_days().max(0))
+                                                    .unwrap_or(0);
 
                                                 CertCheckResult {
                                                     hostname,
