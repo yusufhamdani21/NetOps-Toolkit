@@ -3,7 +3,7 @@ use std::net::ToSocketAddrs;
 use std::time::{Duration, Instant};
 use tauri::command;
 use whois::{WhoIs, WhoIsLookupOptions};
-use x509_parser::prelude::X509Certificate;
+use x509_parser::prelude::{FromDer, X509Certificate};
 
 #[derive(Debug, Serialize)]
 pub struct DashboardInfo {
