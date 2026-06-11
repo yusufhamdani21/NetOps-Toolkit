@@ -246,12 +246,13 @@ pub async fn traceroute_host(host: String) -> TracerouteResult {
                         parts.iter().rev().find(|p| p.contains('.') || p.contains(':')).unwrap_or(&"?").to_string()
                     };
 
+                    let packet_loss = if ip == "*" { 100.0 } else { 0.0 };
                     Some(TracerouteHop {
                         hop,
                         hostname: format!("hop-{}", hop),
                         ip,
                         latencies: vec![],
-                        packet_loss: if ip == "*" { 100.0 } else { 0.0 },
+                        packet_loss,
                     })
                 })
                 .collect();
