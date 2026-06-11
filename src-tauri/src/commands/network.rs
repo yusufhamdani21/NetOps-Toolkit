@@ -25,8 +25,9 @@ pub async fn get_dashboard_info() -> DashboardInfo {
         .unwrap_or_else(|_| "Unknown".to_string());
 
     let start = Instant::now();
-    let public_ip = match get_public_ip().await {
-        Ok(ip) => {
+    let timeout = tokio::time::timeout(Duration::from_secs(3), get_public_ip()).await;
+    let public_ip = match timeout {
+        Ok(Ok(ip)) => {
             let latency = start.elapsed().as_millis() as u64;
             return DashboardInfo {
                 local_ip,
@@ -39,7 +40,7 @@ pub async fn get_dashboard_info() -> DashboardInfo {
                 quick_health: if latency < 100 { "healthy" } else if latency < 300 { "warning" } else { "critical" }.to_string(),
             };
         }
-        Err(_) => "Unknown".to_string(),
+        _ => "Unknown".to_string(),
     };
 
     DashboardInfo {
@@ -97,11 +98,11 @@ pub async fn ping_host(host: String) -> PingResult {
 
     let output = if cfg!(target_os = "windows") {
         Command::new("ping")
-            .args(["-n", "4", &host])
+            .args(["-n", "2", &host])
             .output()
     } else {
         Command::new("ping")
-            .args(["-c", "4", &host])
+            .args(["-c", "2", &host])
             .output()
     };
 
